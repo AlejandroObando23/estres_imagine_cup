@@ -1,0 +1,24 @@
+{
+  "name": "StressBot",
+  "short_name": "StressBot",
+  "description": "Evalúa tu nivel de estrés mediante análisis facial y conversaciones inteligentes",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf8ff",
+  "theme_color": "#c4b5fd",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
