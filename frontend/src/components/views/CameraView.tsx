@@ -1,202 +1,200 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Camera, RotateCcw, Check, X, Loader2 } from "lucide-react";
+import {
+  Camera,
+  RotateCcw,
+  Check,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
 
-interface CameraViewProps {
-  onCapture: (imageData: string) => void;
-  onAnalysisComplete?: (result: { stressLevel: number; message: string }) => void;
+// Tipado para el resultado que esperas
+interface AnalysisResult {
+  stress_score: number;
+  nivel: string;
+  probabilidades?: {
+    stress: number;
+  };
 }
 
-export function CameraView({ onCapture, onAnalysisComplete }: CameraViewProps) {
+export function CameraView({ onAnalysisComplete }: { onAnalysisComplete: (data: any) => void }) {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Estado para guardar el resultado localmente si lo necesitas mostrar aquí
+  const [analysis, setAnalysis] = useState<{
+    stressLevel: number;
+    message: string;
+  } | null>(null);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const startCamera = useCallback(async () => {
-    try {
-      setError(null);
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
-      });
-      setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-      }
-    } catch (err) {
-      setError("No se pudo acceder a la cámara. Por favor, permite el acceso.");
+  useEffect(() => {
+    if (stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.onloadedmetadata = () => {
+        videoRef.current?.play().catch(console.error);
+      };
     }
-  }, []);
-
-  const stopCamera = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
-    }
+    // Cleanup: detener cámara al desmontar el componente
+    return () => {
+      stream?.getTracks().forEach(track => track.stop());
+    };
   }, [stream]);
 
-  const takePhoto = useCallback(() => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(video, 0, 0);
-        const imageData = canvas.toDataURL("image/jpeg", 0.8);
-        setCapturedImage(imageData);
-        stopCamera();
-      }
-    }
-  }, [stopCamera]);
+  const analyzeImage = async () => {
+    if (!capturedImage) return;
 
-  const retakePhoto = useCallback(() => {
-    setCapturedImage(null);
-    startCamera();
-  }, [startCamera]);
-
-  const confirmPhoto = useCallback(async () => {
-    if (capturedImage) {
+    try {
       setIsAnalyzing(true);
-      onCapture(capturedImage);
-      
-      // Simulate analysis
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      
-      const mockResult = {
-        stressLevel: Math.floor(Math.random() * 60) + 20,
-        message: "Basado en tu expresión facial, parece que tienes un nivel moderado de estrés. Te recomendamos tomar un descanso.",
+      setError(null);
+
+      const response = await fetch("http://localhost:8000/predict/image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: capturedImage }),
+      });
+
+      if (!response.ok) throw new Error("Error al analizar la imagen");
+
+      const result: AnalysisResult = await response.json();
+
+      // Formateamos la data para el estado local y el callback
+      const formattedData = {
+        stressLevel: Math.round(result.stress_score),
+        message: `Tu nivel de estrés es ${result.nivel}`,
       };
+
+      setAnalysis(formattedData);
       
+      // Notificamos al padre
+      if (onAnalysisComplete) {
+        onAnalysisComplete(result);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo analizar la imagen. Intenta nuevamente.");
+    } finally {
       setIsAnalyzing(false);
-      onAnalysisComplete?.(mockResult);
     }
-  }, [capturedImage, onCapture, onAnalysisComplete]);
+  };
+
+  const startCamera = async () => {
+    try {
+      setError(null);
+      setAnalysis(null); // Limpiar análisis previo
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      setStream(mediaStream);
+    } catch (err) {
+      setError("No se pudo activar la cámara. Revisa los permisos.");
+    }
+  };
+
+  const takePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0);
+
+    setCapturedImage(canvas.toDataURL("image/jpeg", 0.85));
+    stream?.getTracks().forEach((track) => track.stop());
+    setStream(null);
+  };
 
   return (
-    <div className="min-h-screen pt-20 pb-24 lg:pt-8 lg:pb-8 px-4 lg:px-8 bg-gradient-calm">
-      <div className="container max-w-md lg:max-w-4xl mx-auto lg:flex lg:gap-8 lg:items-start space-y-6 lg:space-y-0 animate-fade-in">
-        {/* Left Column - Camera */}
-        <div className="lg:flex-1 space-y-6">
-          <div className="text-center lg:text-left py-4">
-            <h2 className="font-display text-xl lg:text-2xl font-bold text-foreground mb-2">
-              Análisis por Foto
-            </h2>
-            <p className="text-sm lg:text-base text-muted-foreground">
-              Toma una foto de tu rostro para analizar tu nivel de estrés
-            </p>
-          </div>
-
-        {/* Camera Preview */}
-        <div className="relative aspect-square lg:aspect-video lg:max-h-[500px] rounded-3xl overflow-hidden bg-card shadow-elevated border border-border/50">
-          {!stream && !capturedImage && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-muted/50">
-              <div className="w-20 h-20 rounded-full bg-lavender-light flex items-center justify-center">
-                <Camera className="h-10 w-10 text-primary" />
-              </div>
-              <Button variant="gradient" size="lg" onClick={startCamera}>
-                Activar cámara
-              </Button>
-              {error && (
-                <p className="text-destructive text-sm text-center px-4">{error}</p>
-              )}
-            </div>
-          )}
-
-          {stream && !capturedImage && (
+    <div className="flex flex-col items-center gap-6 w-full max-w-4xl mx-auto p-4">
+      {/* Contenedor de Video/Imagen */}
+      <div className="relative w-full aspect-video rounded-3xl overflow-hidden bg-slate-950 shadow-2xl border border-white/10">
+        {stream && !capturedImage && (
+          <>
             <video
               ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="absolute inset-0 w-full h-full object-cover"
+              autoPlay playsInline muted
+              className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
             />
-          )}
-
-          {capturedImage && (
-            <img
-              src={capturedImage}
-              alt="Captured"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          )}
-
-          {isAnalyzing && (
-            <div className="absolute inset-0 bg-foreground/50 flex flex-col items-center justify-center gap-4">
-              <Loader2 className="h-12 w-12 text-primary-foreground animate-spin" />
-              <p className="text-primary-foreground font-medium">
-                Analizando...
-              </p>
-            </div>
-          )}
-
-          {/* Face guide overlay */}
-          {stream && !capturedImage && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-48 h-64 border-4 border-dashed border-primary/50 rounded-[100px] animate-pulse-soft" />
+              <div className="w-[35%] aspect-[3/4] border-2 border-dashed border-white/60 rounded-[100%] shadow-[0_0_0_1000px_rgba(0,0,0,0.4)]" />
             </div>
-          )}
-        </div>
+          </>
+        )}
 
-        <canvas ref={canvasRef} className="hidden" />
+        {capturedImage && (
+          <img src={capturedImage} alt="Captura" className="absolute inset-0 w-full h-full object-cover" />
+        )}
 
-        {/* Action Buttons */}
-        <div className="flex justify-center gap-4">
-          {stream && !capturedImage && (
-            <>
-              <Button variant="outline" size="icon-lg" onClick={stopCamera}>
-                <X className="h-6 w-6" />
+        {!stream && !capturedImage && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur">
+            {error ? (
+              <div className="text-center p-4">
+                <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-2" />
+                <p className="text-sm text-white">{error}</p>
+                <Button onClick={startCamera} className="mt-4">Reintentar</Button>
+              </div>
+            ) : (
+              <Button onClick={startCamera} size="lg" className="rounded-full">
+                <Camera className="mr-2" /> Activar Cámara
               </Button>
-              <Button variant="gradient" size="icon-lg" onClick={takePhoto}>
-                <Camera className="h-6 w-6" />
-              </Button>
-            </>
-          )}
-
-          {capturedImage && !isAnalyzing && (
-            <>
-              <Button variant="outline" size="icon-lg" onClick={retakePhoto}>
-                <RotateCcw className="h-6 w-6" />
-              </Button>
-              <Button variant="gradient" size="icon-lg" onClick={confirmPhoto}>
-                <Check className="h-6 w-6" />
-              </Button>
-            </>
-          )}
-        </div>
-        </div>
-
-        {/* Right Column - Tips (Desktop) */}
-        <div className="lg:w-80 lg:sticky lg:top-8 space-y-4">
-          <div className="p-4 lg:p-6 rounded-xl lg:rounded-2xl bg-card shadow-soft border border-border/50">
-            <h4 className="font-display font-semibold text-sm lg:text-base mb-2 lg:mb-4">Consejos para mejores resultados:</h4>
-            <ul className="text-xs lg:text-sm text-muted-foreground space-y-1 lg:space-y-3">
-              <li className="flex items-start gap-2">
-                <span className="text-primary">•</span>
-                Asegúrate de tener buena iluminación
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-primary">•</span>
-                Mantén tu rostro centrado en el marco
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-primary">•</span>
-                Intenta mostrar una expresión natural
-              </li>
-            </ul>
+            )}
           </div>
+        )}
+      </div>
 
-          <div className="hidden lg:block p-6 rounded-2xl bg-gradient-to-r from-lavender-light to-sky-light border border-border/30">
-            <h4 className="font-display font-semibold text-base mb-2">¿Cómo funciona?</h4>
-            <p className="text-sm text-muted-foreground">
-              Nuestro sistema analiza tus expresiones faciales para detectar signos de estrés 
-              y proporcionarte recomendaciones personalizadas.
-            </p>
-          </div>
+      <canvas ref={canvasRef} className="hidden" />
+
+      {/* Mostrar Resultado si existe */}
+      {analysis && !isAnalyzing && (
+        <div className="text-center p-4 bg-white/5 rounded-xl border border-white/10 w-full">
+           <span className="text-3xl lg:text-4xl font-bold text-primary">
+            {analysis.stressLevel}%
+          </span>
+          <p className="text-muted-foreground">{analysis.message}</p>
         </div>
+      )}
+
+      {/* Controles */}
+      <div className="flex gap-4">
+        {stream && (
+          <Button onClick={takePhoto} size="lg" className="h-16 w-16 rounded-full">
+            <Camera className="w-8 h-8" />
+          </Button>
+        )}
+
+        {capturedImage && (
+          <>
+            <Button
+              variant="outline"
+              disabled={isAnalyzing}
+              onClick={() => {
+                setCapturedImage(null);
+                setAnalysis(null);
+                startCamera();
+              }}
+            >
+              <RotateCcw className="mr-2" /> Repetir
+            </Button>
+
+            <Button onClick={analyzeImage} disabled={isAnalyzing}>
+              {isAnalyzing ? (
+                <><Loader2 className="mr-2 animate-spin" /> Analizando...</>
+              ) : (
+                <><Check className="mr-2" /> Analizar Rostro</>
+              )}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );

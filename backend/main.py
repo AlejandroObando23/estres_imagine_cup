@@ -1,55 +1,53 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List
+import base64
+import cv2
+import numpy as np
+import uuid
+import os
 
-# Crear la app (ESTO ES CLAVE)
-app = FastAPI(title="StressBot API")
+from stress_detector_model import StressDetector
 
-# -----------------------------
-# MODELO PARA TEXTO / ENCUESTA
-# -----------------------------
-class TextoEntrada(BaseModel):
-    respuestas: List[int]  # Ej: [3, 4, 2, 5]
+app = FastAPI()
 
-# -----------------------------
-# ENDPOINT: ESTRÉS POR TEXTO
-# -----------------------------
-@app.post("/estres/texto")
-def evaluar_estres_texto(data: TextoEntrada):
-    promedio = sum(data.respuestas) / len(data.respuestas)
+# ✅ CORS (OBLIGATORIO para React)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # en producción se restringe
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    if promedio <= 2:
-        nivel = "Bajo"
-        consejo = "Mantén hábitos saludables y descansos regulares."
-    elif promedio <= 4:
-        nivel = "Medio"
-        consejo = "Intenta técnicas de respiración y pausas activas."
-    else:
-        nivel = "Alto"
-        consejo = "Busca apoyo profesional y reduce la carga de actividades."
+# ---------- MODELO ----------
+detector = StressDetector()
+detector.load_model("models/stress_model_final.h5")
 
-    return {
-        "nivel_estres": nivel,
-        "consejo": consejo
-    }
+# ---------- SCHEMA ----------
+class ImageRequest(BaseModel):
+    image: str  # base64
 
-# -----------------------------
-# ENDPOINT: ESTRÉS POR FOTO
-# -----------------------------
-@app.post("/estres/foto")
-async def evaluar_estres_foto(imagen: UploadFile = File(...)):
-    # Aquí luego conectarás IA / visión artificial
-    nivel = "Medio"
-    consejo = "Realiza ejercicios de relajación y respira profundamente."
+# ---------- ENDPOINT ----------
+@app.post("/predict/image")
+def predict_image(data: ImageRequest):
+    # 1. Limpiar base64
+    image_data = data.image.split(",")[1]
+    image_bytes = base64.b64decode(image_data)
 
-    return {
-        "nivel_estres": nivel,
-        "consejo": consejo
-    }
+    # 2. Convertir a imagen OpenCV
+    np_arr = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-# -----------------------------
-# ENDPOINT DE PRUEBA
-# -----------------------------
-@app.get("/")
-def root():
-    return {"mensaje": "StressBot backend activo"}
+    # 3. Guardar temporalmente (tu modelo lo usa así)
+    os.makedirs("temp", exist_ok=True)
+    filename = f"temp/{uuid.uuid4()}.jpg"
+    cv2.imwrite(filename, img)
+
+    # 4. Predicción
+    result = detector.predict_stress(filename)
+
+    # 5. Limpiar
+    os.remove(filename)
+
+    return result
