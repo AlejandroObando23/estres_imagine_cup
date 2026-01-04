@@ -8,12 +8,13 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-// Tipado para el resultado que esperas
+// Tipado para el resultado que viene de FastAPI
 interface AnalysisResult {
-  stress_score: number;
-  nivel: string;
-  probabilidades?: {
-    stress: number;
+  status: string;
+  prediction: {
+    stress_score: number;
+    nivel: string;
+    probabilidad: number;
   };
 }
 
@@ -23,7 +24,7 @@ export function CameraView({ onAnalysisComplete }: { onAnalysisComplete: (data: 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Estado para guardar el resultado localmente si lo necesitas mostrar aquí
+  // Estado para guardar el resultado formateado
   const [analysis, setAnalysis] = useState<{
     stressLevel: number;
     message: string;
@@ -39,53 +40,68 @@ export function CameraView({ onAnalysisComplete }: { onAnalysisComplete: (data: 
         videoRef.current?.play().catch(console.error);
       };
     }
-    // Cleanup: detener cámara al desmontar el componente
     return () => {
       stream?.getTracks().forEach(track => track.stop());
     };
   }, [stream]);
 
   const analyzeImage = async () => {
-    if (!capturedImage) return;
+  if (!capturedImage) return;
 
-    try {
-      setIsAnalyzing(true);
-      setError(null);
+  try {
+    setIsAnalyzing(true);
+    setError(null);
 
-      const response = await fetch("http://localhost:8000/predict/image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: capturedImage }),
-      });
+   const response = await fetch("http://localhost:8000/predict/image", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ image: capturedImage }),
+});
 
-      if (!response.ok) throw new Error("Error al analizar la imagen");
+if (!response.ok) throw new Error("Error al analizar la imagen");
 
-      const result: AnalysisResult = await response.json();
+const result = await response.json();
 
-      // Formateamos la data para el estado local y el callback
-      const formattedData = {
-        stressLevel: Math.round(result.stress_score),
-        message: `Tu nivel de estrés es ${result.nivel}`,
-      };
+// --- LA CORRECCIÓN ESTÁ AQUÍ ---
+// Accedemos a la propiedad 'prediction' que vimos en tu captura de pantalla
+const datosReales = result.prediction; 
+console.log("resulado_general:", result);
 
-      setAnalysis(formattedData);
-      
-      // Notificamos al padre
-      if (onAnalysisComplete) {
-        onAnalysisComplete(result);
-      }
-    } catch (err) {
-      console.error(err);
-      setError("No se pudo analizar la imagen. Intenta nuevamente.");
-    } finally {
-      setIsAnalyzing(false);
-    }
+if (datosReales) {
+  const nivel = datosReales.nivel;
+  const score = datosReales.stress_score;
+  const probabilidad = datosReales.probabilidad;
+
+  console.log("--- DATOS AHORA SÍ EXTRAÍDOS ---");
+  console.log("Nivel:", nivel);
+  console.log("Score:", score);
+
+  // Formateamos para el frontend (multiplicamos por 100 si el score viene como 0.62)
+  const formattedData = {
+    stressLevel: Math.round(score * 100), 
+    message: `Tu nivel de estrés es ${nivel}`,
   };
 
+  setAnalysis(formattedData);
+
+  if (onAnalysisComplete) {
+    onAnalysisComplete(formattedData);
+  }
+} else {
+  console.error("No se encontró la propiedad 'prediction' en la respuesta");
+}
+
+  } catch (err) {
+    console.error("Error en el análisis:", err);
+    setError("No se pudo analizar la imagen. Intenta nuevamente.");
+  } finally {
+    setIsAnalyzing(false);
+  }
+};
   const startCamera = async () => {
     try {
       setError(null);
-      setAnalysis(null); // Limpiar análisis previo
+      setAnalysis(null);
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
@@ -154,7 +170,7 @@ export function CameraView({ onAnalysisComplete }: { onAnalysisComplete: (data: 
 
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Mostrar Resultado si existe */}
+      {/* Mostrar Resultado si existe y no estamos analizando */}
       {analysis && !isAnalyzing && (
         <div className="text-center p-4 bg-white/5 rounded-xl border border-white/10 w-full">
            <span className="text-3xl lg:text-4xl font-bold text-primary">

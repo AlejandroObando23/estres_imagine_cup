@@ -3,7 +3,7 @@ import { ArrowRight, Sparkles, RefreshCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AnalysisResultViewProps {
-  stressLevel: number; // 0 - 100
+  stressLevel: number; // Ahora esperamos un valor de 0 a 100
   message: string;
   type: "photo" | "chat";
   onContinue: () => void;
@@ -17,21 +17,22 @@ export function AnalysisResultView({
   onContinue,
   onTryAgain,
 }: AnalysisResultViewProps) {
-  console.log("type of analysis result view:", type);
-  console.log("stress level:", stressLevel);
   
-
+  // Ajustamos los umbrales a números enteros (0-100)
   const getStressLabel = () => {
-    if (stressLevel < 0.40) return "Bajo";
-    if (stressLevel < 0.70) return "Moderado";
+    if (stressLevel < 40) return "Bajo";
+    if (stressLevel < 70) return "Moderado";
     return "Alto";
   };
 
   const getStressEmoji = () => {
-    if (stressLevel < 0.40) return "😊";
-    if (stressLevel < 0.70) return "😐";
+    if (stressLevel < 40) return "😊";
+    if (stressLevel < 70) return "😐";
     return "😟";
   };
+
+  // Cálculo del círculo: el perímetro es 2 * PI * radio (2 * 3.14 * 45 ≈ 283)
+  const strokeDashoffset = 283 - (stressLevel * 283) / 100;
 
   return (
     <div className="min-h-screen pt-20 pb-24 lg:pt-0 lg:pb-0 px-4 bg-gradient-calm flex items-center justify-center">
@@ -53,7 +54,7 @@ export function AnalysisResultView({
                 stroke="currentColor"
                 strokeWidth="8"
                 fill="none"
-                className="text-muted"
+                className="text-muted/20"
               />
               <circle
                 cx="50"
@@ -62,7 +63,8 @@ export function AnalysisResultView({
                 stroke="url(#gradient)"
                 strokeWidth="8"
                 fill="none"
-                strokeDasharray={`${stressLevel * 2.83} 283`}
+                strokeDasharray="283"
+                style={{ strokeDashoffset }}
                 strokeLinecap="round"
                 className="transition-all duration-1000 ease-out"
               />
@@ -72,22 +74,16 @@ export function AnalysisResultView({
                   <stop
                     offset="0%"
                     className={cn(
-                      stressLevel < 40
-                        ? "text-mint"
-                        : stressLevel < 70
-                        ? "text-peach"
-                        : "text-rose"
+                      stressLevel < 40 ? "text-green-400" : 
+                      stressLevel < 70 ? "text-orange-400" : "text-red-500"
                     )}
                     style={{ stopColor: "currentColor" }}
                   />
                   <stop
                     offset="100%"
                     className={cn(
-                      stressLevel < 40
-                        ? "text-mint/70"
-                        : stressLevel < 70
-                        ? "text-peach/70"
-                        : "text-rose/70"
+                      stressLevel < 40 ? "text-emerald-500" : 
+                      stressLevel < 70 ? "text-amber-500" : "text-rose-600"
                     )}
                     style={{ stopColor: "currentColor" }}
                   />
@@ -105,16 +101,16 @@ export function AnalysisResultView({
             </div>
           </div>
 
-<h2 className="font-display text-2xl lg:text-3xl font-bold text-foreground mb-2">
-  Nivel de estrés: {getStressLabel()}
-</h2>
+          <h2 className="font-display text-2xl lg:text-3xl font-bold text-foreground mb-2">
+            Nivel de estrés: {getStressLabel()}
+          </h2>
 
-<p className="text-muted-foreground lg:text-lg mb-6 lg:mb-8">
-  {message}
-</p>
+          <p className="text-muted-foreground lg:text-lg mb-6 lg:mb-8">
+            {message}
+          </p>
 
           {/* QUICK TIP */}
-          <div className="bg-muted/50 rounded-xl p-4 text-left">
+          <div className="bg-muted/50 rounded-xl p-4 text-left border border-white/5">
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="h-5 w-5 text-primary" />
               <h3 className="font-display font-semibold text-foreground">
@@ -122,12 +118,12 @@ export function AnalysisResultView({
               </h3>
             </div>
 
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               {stressLevel < 40
-                ? "¡Excelente! Mantén tus hábitos actuales y sigue cuidando tu bienestar."
+                ? "¡Excelente! Tus niveles están bajo control. Es un buen momento para una actividad creativa."
                 : stressLevel < 70
-                ? "Intenta hacer una pausa de 5 minutos con ejercicios de respiración profunda."
-                : "Busca un lugar tranquilo y practica la respiración 4-7-8 para reducir el estrés."}
+                ? "Tu nivel es moderado. Una caminata corta o estiramientos podrían ayudarte a bajar la tensión."
+                : "Nivel alto detectado. Te recomendamos la técnica de respiración cuadrada: inhala 4s, mantén 4s, exhala 4s."}
             </p>
           </div>
         </div>
@@ -137,7 +133,7 @@ export function AnalysisResultView({
           <Button
             variant="outline"
             size="lg"
-            className="flex-1 gap-2"
+            className="flex-1 gap-2 rounded-2xl h-14"
             onClick={onTryAgain}
           >
             <RefreshCcw className="h-5 w-5" />
@@ -145,9 +141,8 @@ export function AnalysisResultView({
           </Button>
 
           <Button
-            variant="gradient"
             size="lg"
-            className="flex-1 gap-2"
+            className="flex-1 gap-2 rounded-2xl h-14 bg-primary text-white hover:opacity-90"
             onClick={onContinue}
           >
             Continuar

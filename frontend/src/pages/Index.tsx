@@ -12,6 +12,7 @@ import { AnalysisResultView } from "@/components/views/AnalysisResultView";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
 
+// Definición de tipos para la navegación y resultados
 type View = "home" | "camera" | "chat" | "history" | "recommendations" | "login" | "result";
 
 interface AnalysisResult {
@@ -21,18 +22,21 @@ interface AnalysisResult {
 }
 
 const Index = () => {
+  // --- ESTADOS ---
   const [currentView, setCurrentView] = useState<View>("home");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const { toast } = useToast();
 
+  // Datos de ejemplo para el historial
   const mockRecentAnalyses = [
     { id: "1", type: "photo" as const, stressLevel: 35, date: "Hoy, 10:30" },
     { id: "2", type: "chat" as const, stressLevel: 45, date: "Ayer, 15:00" },
     { id: "3", type: "photo" as const, stressLevel: 55, date: "Mar 15, 09:00" },
   ];
 
+  // --- MANEJADORES DE EVENTOS ---
   const handleLogin = (email: string) => {
     setIsLoggedIn(true);
     setUserEmail(email);
@@ -54,7 +58,8 @@ const Index = () => {
   };
 
   const handlePhotoCapture = (imageData: string) => {
-    console.log("Photo captured");
+    console.log("Foto capturada:", imageData);
+    // Aquí iría la lógica para enviar la imagen al backend
   };
 
   const handleAnalysisComplete = (result: { stressLevel: number; message: string }) => {
@@ -66,6 +71,7 @@ const Index = () => {
     setCurrentView(view);
   };
 
+  // --- LÓGICA DE RENDERIZADO DE VISTAS ---
   const renderView = () => {
     switch (currentView) {
       case "login":
@@ -88,7 +94,6 @@ const Index = () => {
       case "camera":
         return (
           <CameraView
-            onCapture={handlePhotoCapture}
             onAnalysisComplete={handleAnalysisComplete}
           />
         );
@@ -109,22 +114,23 @@ const Index = () => {
     }
   };
 
+  // Determinar si mostrar navegación (oculta en Login y Resultados)
   const showNavigation = currentView !== "login" && currentView !== "result";
 
   return (
     <div className="min-h-screen bg-background flex w-full">
-      {/* Desktop Sidebar */}
+      {/* Sidebar para Escritorio */}
       {showNavigation && (
         <DesktopSidebar
-          currentView={currentView as "home" | "camera" | "chat" | "history" | "recommendations"}
-          onViewChange={(view) => setCurrentView(view)}
+          currentView={currentView as any}
+          onViewChange={(view) => setCurrentView(view as View)}
           isLoggedIn={isLoggedIn}
           onLogin={() => setCurrentView("login")}
           onLogout={handleLogout}
         />
       )}
 
-      {/* Main Content */}
+      {/* Contenido Principal */}
       <div className="flex-1 flex flex-col min-h-screen">
         {showNavigation && (
           <Header
@@ -138,15 +144,17 @@ const Index = () => {
           {renderView()}
         </main>
 
+        {/* Navegación Inferior (Móvil) */}
         {showNavigation && (
           <BottomNav
-            currentView={currentView as "home" | "camera" | "chat" | "history" | "recommendations"}
-            onViewChange={(view) => setCurrentView(view)}
+            currentView={currentView as any}
+            onViewChange={(view) => setCurrentView(view as View)}
             isLoggedIn={isLoggedIn}
           />
         )}
       </div>
       
+      {/* Componente de notificaciones de UI */}
       <Toaster />
     </div>
   );
