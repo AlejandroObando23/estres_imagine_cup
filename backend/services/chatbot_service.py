@@ -8,8 +8,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_classic.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_community.chat_message_histories import SQLChatMessageHistory
 
 # Cargar variables de entorno
 load_dotenv()
@@ -19,14 +19,17 @@ PERSIST_DIRECTORY = "./chroma_db"
 DATA_PATH = "./ChatbotData"              
 
 # Variables globales para mantener en memoria
-store = {}  # Aquí se guardan las conversaciones de cada usuario {session_id: History}
 conversational_rag_chain = None
 
 def get_session_history(session_id: str):
-    """Recupera el historial de chat de un usuario específico."""
-    if session_id not in store:
-        store[session_id] = ChatMessageHistory()
-    return store[session_id]
+    """
+    Crea o recupera el historial desde una base de datos SQLite local.
+    El archivo se creará automáticamente como 'chat_history.db'.
+    """
+    return SQLChatMessageHistory(
+        session_id=session_id,
+        connection="sqlite:///chat_history.db" 
+    )
 
 def initialize_chatbot():
     """

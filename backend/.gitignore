@@ -12,11 +12,11 @@ venv
 dist
 dist-ssr
 *.local
+chat_history.db
 
 .vscode/*
 !.vscode/extensions.json
-.ideagit add .
-git commit -m "V2.0.0 Agregando chatbot y estructura MVC (Fixed)"
+.idea
 .DS_Store
 *.suo
 *.ntvs*
