@@ -1,53 +1,39 @@
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import base64
-import cv2
-import numpy as np
-import uuid
-import os
+from routes import imagePrediction
+from routes import chatbot
+from services.chatbot_service import initialize_chatbot
+from contextlib import asynccontextmanager
 
-from stress_detector_model import StressDetector
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 1. Al iniciar: Cargar modelo y procesar libros
+    try:
+        initialize_chatbot()
+    except Exception as e:
+        print(f"Error iniciando chatbot: {e}")
+    
+    yield
+    
+    # 2. Al apagar (limpieza opcional)
+    print("Apagando servidor...")
 
-app = FastAPI()
+app = FastAPI(title="StressGuard DeepLearning API", lifespan=lifespan)
 
-# ✅ CORS (OBLIGATORIO para React)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # en producción se restringe
+    allow_origins=["*"],        # En producción pon tu dominio
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["*"],        # Permite OPTIONS, POST, etc.
     allow_headers=["*"],
 )
 
-# ---------- MODELO ----------
-detector = StressDetector()
-detector.load_model("models/stress_model_final.h5")
+print("====================================\n")
+print("Iniciando servidor de FastAPI...")
+print("\n====================================")
 
-# ---------- SCHEMA ----------
-class ImageRequest(BaseModel):
-    image: str  # base64
+app.include_router(imagePrediction.router)
+app.include_router(chatbot.router)
 
-# ---------- ENDPOINT ----------
-@app.post("/predict/image")
-def predict_image(data: ImageRequest):
-    # 1. Limpiar base64
-    image_data = data.image.split(",")[1]
-    image_bytes = base64.b64decode(image_data)
-
-    # 2. Convertir a imagen OpenCV
-    np_arr = np.frombuffer(image_bytes, np.uint8)
-    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-
-    # 3. Guardar temporalmente (tu modelo lo usa así)
-    os.makedirs("temp", exist_ok=True)
-    filename = f"temp/{uuid.uuid4()}.jpg"
-    cv2.imwrite(filename, img)
-
-    # 4. Predicción
-    result = detector.predict_stress(filename)
-
-    # 5. Limpiar
-    os.remove(filename)
-
-    return result
+    

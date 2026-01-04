@@ -1,0 +1,34 @@
+# Web framework
+fastapi
+uvicorn
+
+# Data validation
+pydantic
+
+# Carga de variables de entorno
+python-dotenv
+
+# LangChain y ecosistema
+langchain
+langchain-community
+langchain-core
+langchain-text-splitters
+langchain-groq
+langchain-huggingface
+langchain-chroma
+
+# Machine Learning y Deep Learning
+tensorflow
+keras
+scikit-learn
+opencv-python
+matplotlib
+numpy
+pandas
+seaborn
+
+# Utilidades
+requests
+
+# Otros (pueden ser requeridos por dependencias o para compatibilidad)
+python-multipart

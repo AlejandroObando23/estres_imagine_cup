@@ -1,0 +1,26 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+.env
+venv
+dist
+dist-ssr
+*.local
+
+.vscode/*
+!.vscode/extensions.json
+.ideagit add .
+git commit -m "V2.0.0 Agregando chatbot y estructura MVC (Fixed)"
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+backend/.env
